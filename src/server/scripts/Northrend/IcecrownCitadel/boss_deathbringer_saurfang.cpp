@@ -251,7 +251,7 @@ public:
         void Reset() override
         {
             _Reset();
-            me->SetUnitFlag(UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_NOT_SELECTABLE);
+            me->SetImmuneToAll(true);
             me->SetReactState(REACT_DEFENSIVE);
             events.Reset();
             _introDone = false;
@@ -323,7 +323,7 @@ public:
 
         void AttackStart(Unit* victim) override
         {
-            if (!_introDone || me->HasUnitFlag(UNIT_FLAG_IMMUNE_TO_PC))
+            if (!_introDone || me->IsImmuneToPC())
                 return;
 
             ScriptedAI::AttackStart(victim);
@@ -707,7 +707,7 @@ public:
                     if (Creature* deathbringer = ObjectAccessor::GetCreature(*me, _instance->GetGuidData(DATA_DEATHBRINGER_SAURFANG)))
                     {
                         deathbringer->AI()->DoAction(ACTION_INTRO_DONE);
-                        deathbringer->RemoveUnitFlag(UNIT_FLAG_IMMUNE_TO_PC);
+                        deathbringer->SetImmuneToPC(false);
                         if (Player* target = deathbringer->SelectNearestPlayer(100.0f))
                             deathbringer->AI()->AttackStart(target);
                     }
@@ -750,8 +750,8 @@ public:
         InstanceScript* instance = creature->GetInstanceScript();
         if (instance && instance->GetBossState(DATA_DEATHBRINGER_SAURFANG) != DONE && instance->GetBossState(DATA_DEATHBRINGER_SAURFANG) != IN_PROGRESS)
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "We are ready to go, High Overlord. The Lich King must fall!", 631, -ACTION_START_EVENT);
-            SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
+            AddGossipItemFor(player, 10953, 0, GOSSIP_SENDER_INFO, -ACTION_START_EVENT);
+            SendGossipMenuFor(player, player->GetGossipTextId(10953, creature), creature->GetGUID());
         }
 
         return true;
@@ -945,7 +945,7 @@ public:
                     if (Creature* deathbringer = ObjectAccessor::GetCreature(*me, _instance->GetGuidData(DATA_DEATHBRINGER_SAURFANG)))
                     {
                         deathbringer->AI()->DoAction(ACTION_INTRO_DONE);
-                        deathbringer->RemoveUnitFlag(UNIT_FLAG_IMMUNE_TO_PC);
+                        deathbringer->SetImmuneToPC(false);
                         if (Player* target = deathbringer->SelectNearestPlayer(100.0f))
                             deathbringer->AI()->AttackStart(target);
                     }
@@ -964,8 +964,8 @@ public:
         InstanceScript* instance = creature->GetInstanceScript();
         if (instance && instance->GetBossState(DATA_DEATHBRINGER_SAURFANG) != DONE && instance->GetBossState(DATA_DEATHBRINGER_SAURFANG) != IN_PROGRESS)
         {
-            AddGossipItemFor(player, 0, "Let it begin...", 631, -ACTION_START_EVENT + 1);
-            SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
+            AddGossipItemFor(player, 10933, 0, GOSSIP_SENDER_INFO, -ACTION_START_EVENT + 1);
+            SendGossipMenuFor(player, player->GetGossipTextId(10933, creature), creature->GetGUID());
         }
 
         return true;

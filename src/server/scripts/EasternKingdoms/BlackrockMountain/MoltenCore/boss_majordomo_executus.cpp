@@ -151,7 +151,8 @@ public:
             {
                 summon->CastSpell(summon, SPELL_RAGNAROS_FADE);
                 summon->CastSpell(summon, SPELL_RAGNAROS_SUBMERGE_EFFECT, true);
-                summon->SetUnitFlag(UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NON_ATTACKABLE);
+                summon->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+                summon->SetImmuneToAll(true);
                 summon->SetReactState(REACT_PASSIVE);
             }
         }
@@ -180,7 +181,7 @@ public:
             else
             {
                 events.SetPhase(PHASE_NONE);
-                me->SetUnitFlag(UNIT_FLAG_IMMUNE_TO_PC|UNIT_FLAG_IMMUNE_TO_NPC);
+                me->SetImmuneToAll(true);
                 me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                 me->SetFaction(FACTION_MAJORDOMO_FRIENDLY);
             }
@@ -212,6 +213,8 @@ public:
                         majordomoSummonsData[spawn->GetGUID().GetCounter()] = MajordomoAddData(spawn->GetGUID(), spawn->GetEntry(), spawn->GetPosition());
                     }
                 }
+
+                me->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
             }
             else
             {
@@ -282,7 +285,7 @@ public:
                     instance->SetBossState(DATA_MAJORDOMO_EXECUTUS, DONE);
                     events.CancelEventGroup(PHASE_COMBAT);
                     me->GetMap()->UpdateEncounterState(ENCOUNTER_CREDIT_KILL_CREATURE, me->GetEntry(), me);
-                    me->SetUnitFlag(UNIT_FLAG_IMMUNE_TO_PC|UNIT_FLAG_IMMUNE_TO_NPC);
+                    me->SetImmuneToAll(true);
                     me->SetFaction(FACTION_MAJORDOMO_FRIENDLY);
                     EnterEvadeMode();
                     Talk(SAY_DEFEAT);

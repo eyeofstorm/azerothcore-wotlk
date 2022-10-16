@@ -114,11 +114,13 @@ public:
 
             if (instance->GetBossState(DATA_GYTH) == IN_PROGRESS)
             {
-                me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_PREPARATION);
+                me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_PREPARATION);
+                me->SetImmuneToAll(false);
                 return;
             }
 
-            me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_PREPARATION);
+            me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_PREPARATION);
+            me->SetImmuneToAll(true);
             gythEvent = false;
             victorGUID.Clear();
             waveDoorGUID.Clear();
@@ -251,6 +253,7 @@ public:
                     {
                         case EVENT_START_1:
                             instance->SetBossState(DATA_WARCHIEF_REND_BLACKHAND, IN_PROGRESS);
+                            instance->SetData(DATA_VAELASTRASZ, NOT_STARTED);
 
                             if (Creature* victor = ObjectAccessor::GetCreature(*me, victorGUID))
                                 victor->AI()->Talk(SAY_NEFARIUS_0);

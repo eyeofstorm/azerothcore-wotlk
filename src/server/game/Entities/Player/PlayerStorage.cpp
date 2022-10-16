@@ -4758,6 +4758,14 @@ void Player::SendEnchantmentDurations()
     }
 }
 
+void Player::UpdateEnchantmentDurations()
+{
+    for (EnchantDurationList::iterator itr = m_enchantDuration.begin(); itr != m_enchantDuration.end(); ++itr)
+    {
+        itr->item->SetEnchantmentDuration(itr->slot, itr->leftduration, this);
+    }
+}
+
 void Player::SendItemDurations()
 {
     for (ItemDurationList::const_iterator itr = m_itemDuration.begin(); itr != m_itemDuration.end(); ++itr)
@@ -4886,21 +4894,9 @@ void Player::_LoadEntryPointData(PreparedQueryResult result)
                                              fields[2].Get<float>(),   // Z
                                              fields[3].Get<float>());  // Orientation
 
-    std::string_view taxi = fields[5].Get<std::string_view>();
-    if (!taxi.empty())
-    {
-        for (auto const& itr : Acore::Tokenize(taxi, ' ', false))
-        {
-            uint32 node = Acore::StringTo<uint32>(itr).value_or(0);
-            m_entryPointData.taxiPath.emplace_back(node);
-        }
-
-        // Check integrity
-        if (m_entryPointData.taxiPath.size() < 3)
-            m_entryPointData.ClearTaxiPath();
-    }
-
-    m_entryPointData.mountSpell   = fields[6].Get<uint32>();
+    m_entryPointData.taxiPath[0] = fields[5].Get<uint32>();
+    m_entryPointData.taxiPath[1] = fields[6].Get<uint32>();
+    m_entryPointData.mountSpell = fields[7].Get<uint32>();
 }
 
 bool Player::LoadPositionFromDB(uint32& mapid, float& x, float& y, float& z, float& o, bool& in_flight, ObjectGuid::LowType guid)
@@ -4926,7 +4922,7 @@ bool Player::LoadPositionFromDB(uint32& mapid, float& x, float& y, float& z, flo
 
 void Player::SetHomebind(WorldLocation const& loc, uint32 areaId)
 {
-    loc.GetPosition(m_homebindX, m_homebindY, m_homebindZ);
+    loc.GetPosition(m_homebindX, m_homebindY, m_homebindZ, m_homebindO);
     m_homebindMapId = loc.GetMapId();
     m_homebindAreaId = areaId;
 
@@ -4934,10 +4930,11 @@ void Player::SetHomebind(WorldLocation const& loc, uint32 areaId)
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_PLAYER_HOMEBIND);
     stmt->SetData(0, m_homebindMapId);
     stmt->SetData(1, m_homebindAreaId);
-    stmt->SetData (2, m_homebindX);
-    stmt->SetData (3, m_homebindY);
-    stmt->SetData (4, m_homebindZ);
-    stmt->SetData(5, GetGUID().GetCounter());
+    stmt->SetData(2, m_homebindX);
+    stmt->SetData(3, m_homebindY);
+    stmt->SetData(4, m_homebindZ);
+    stmt->SetData(5, m_homebindO);
+    stmt->SetData(6, GetGUID().GetCounter());
     CharacterDatabase.Execute(stmt);
 }
 
@@ -5108,7 +5105,7 @@ bool Player::LoadFromDB(ObjectGuid playerGuid, CharacterDatabaseQueryHolder cons
 
     std::string taxi_nodes = fields[42].Get<std::string>();
 
-    auto RelocateToHomebind = [this, &mapId, &instanceId]() { mapId = m_homebindMapId; instanceId = 0; Relocate(m_homebindX, m_homebindY, m_homebindZ); };
+    auto RelocateToHomebind = [this, &mapId, &instanceId]() { mapId = m_homebindMapId; instanceId = 0; Relocate(m_homebindX, m_homebindY, m_homebindZ, m_homebindO); };
 
     _LoadGroup();
 
@@ -5182,10 +5179,8 @@ bool Player::LoadFromDB(ObjectGuid playerGuid, CharacterDatabaseQueryHolder cons
             // xinef: restore taxi flight from entry point data
             if (m_entryPointData.HasTaxiPath())
             {
-                for (size_t i = 0; i < m_entryPointData.taxiPath.size() - 1; ++i)
-                    m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[i]);
-                m_taxi.SetTaxiSegment(m_entryPointData.taxiPath[m_entryPointData.taxiPath.size() - 1]);
-
+                m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[0]);
+                m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[1]);
                 m_entryPointData.ClearTaxiPath();
             }
         }
@@ -7010,7 +7005,7 @@ bool Player::_LoadHomeBind(PreparedQueryResult result)
     }
 
     bool ok = false;
-    // SELECT mapId, zoneId, posX, posY, posZ FROM character_homebind WHERE guid = ?
+    // SELECT mapId, zoneId, posX, posY, posZ, pozO FROM character_homebind WHERE guid = ?
     if (result)
     {
         Field* fields = result->Fetch();
@@ -7020,11 +7015,12 @@ bool Player::_LoadHomeBind(PreparedQueryResult result)
         m_homebindX = fields[2].Get<float>();
         m_homebindY = fields[3].Get<float>();
         m_homebindZ = fields[4].Get<float>();
+        m_homebindO = fields[5].Get<float>();
 
         MapEntry const* bindMapEntry = sMapStore.LookupEntry(m_homebindMapId);
 
         // accept saved data only for valid position (and non instanceable), and accessable
-        if (MapMgr::IsValidMapCoord(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ) &&
+        if (MapMgr::IsValidMapCoord(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ, m_homebindO) &&
             !bindMapEntry->Instanceable() && GetSession()->Expansion() >= bindMapEntry->Expansion())
             ok = true;
         else
@@ -7042,19 +7038,20 @@ bool Player::_LoadHomeBind(PreparedQueryResult result)
         m_homebindX = info->positionX;
         m_homebindY = info->positionY;
         m_homebindZ = info->positionZ;
-
+        m_homebindO = info->orientation;
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_PLAYER_HOMEBIND);
         stmt->SetData(0, GetGUID().GetCounter());
         stmt->SetData(1, m_homebindMapId);
         stmt->SetData(2, m_homebindAreaId);
-        stmt->SetData (3, m_homebindX);
-        stmt->SetData (4, m_homebindY);
-        stmt->SetData (5, m_homebindZ);
+        stmt->SetData(3, m_homebindX);
+        stmt->SetData(4, m_homebindY);
+        stmt->SetData(5, m_homebindZ);
+        stmt->SetData(6, m_homebindO);
         CharacterDatabase.Execute(stmt);
     }
 
-    LOG_DEBUG("entities.player", "Setting player home position - mapid: {}, areaid: {}, X: {}, Y: {}, Z: {}",
-              m_homebindMapId, m_homebindAreaId, m_homebindX, m_homebindY, m_homebindZ);
+    LOG_DEBUG("entities.player", "Setting player home position - mapid: {}, areaid: {}, X: {}, Y: {}, Z: {}, O: {}",
+              m_homebindMapId, m_homebindAreaId, m_homebindX, m_homebindY, m_homebindZ, m_homebindO);
     return true;
 }
 

@@ -160,7 +160,7 @@ void FormationMgr::LoadCreatureFormations()
         ++count;
     } while (result->NextRow());
 
-    LOG_INFO("server.loading", ">> Loaded {} creatures in formations in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Loaded {} Creatures In Formations in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -190,7 +190,7 @@ void CreatureGroup::RemoveMember(Creature* member)
     member->SetFormation(nullptr);
 }
 
-void CreatureGroup::MemberAttackStart(Creature* member, Unit* target)
+void CreatureGroup::MemberEngagingTarget(Creature* member, Unit* target)
 {
     uint8 const groupAI = sFormationMgr->CreatureGroupMap[member->GetSpawnId()].groupAI;
     if (member == m_leader)
@@ -266,6 +266,11 @@ void CreatureGroup::MemberEvaded(Creature* member)
         else
         {
             if (pMember->IsAlive())
+            {
+                continue;
+            }
+
+            if (itr.second.HasGroupFlag(std::underlying_type_t<GroupAIFlags>(GroupAIFlags::GROUP_AI_FLAG_DONT_RESPAWN_LEADER_ON_EVADE)) && pMember == m_leader)
             {
                 continue;
             }
@@ -375,4 +380,44 @@ void CreatureGroup::LeaderMoveTo(float x, float y, float z, bool run)
             member->SetHomePosition(dx, dy, dz, pathAngle);
         }
     }
+}
+
+void CreatureGroup::RespawnFormation(bool force)
+{
+    for (auto const& itr : m_members)
+    {
+        if (itr.first && !itr.first->IsAlive())
+        {
+            itr.first->Respawn(force);
+        }
+    }
+}
+
+bool CreatureGroup::IsFormationInCombat()
+{
+    for (auto const& itr : m_members)
+    {
+        if (itr.first && itr.first->IsInCombat())
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool CreatureGroup::IsAnyMemberAlive(bool ignoreLeader /*= false*/)
+{
+    for (auto const& itr : m_members)
+    {
+        if (itr.first && itr.first->IsAlive())
+        {
+            if (!ignoreLeader || itr.first != m_leader)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }

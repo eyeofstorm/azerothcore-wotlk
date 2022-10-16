@@ -769,13 +769,12 @@ public:
 
         void Reset() override
         {
-            Active = true;
-            CanIteract = 3500;
+            Active = false;
+            CanIteract = 0;
             DoCast(me, SPELL_BRAZIER, true);
             DoCast(me, SPELL_FIERY_AURA, false);
             me->UpdateHeight(me->GetPositionZ() + 0.94f);
             me->SetDisableGravity(true);
-            me->HandleEmoteCommand(EMOTE_ONESHOT_DANCE);
             me->SendMovementFlagUpdate();
         }
 
@@ -2543,6 +2542,64 @@ public:
     }
 };
 
+enum ArcaniteDragonling
+{
+    SPELL_FLAME_BUFFET    = 9658,
+    SPELL_FLAME_BREATH    = 8873,
+
+    EVENT_FLAME_BUFFET    = 1,
+    EVENT_FLAME_BREATH    = 2
+};
+
+struct npc_arcanite_dragonling : public ScriptedAI
+{
+public:
+    npc_arcanite_dragonling(Creature* creature) : ScriptedAI(creature)
+    {
+        creature->SetCanModifyStats(true);
+        creature->SetReactState(REACT_AGGRESSIVE);
+    }
+
+    void Reset() override
+    {
+        me->SetPvP(true);
+        events.Reset();
+    }
+
+    void EnterCombat(Unit* /*who*/) override
+    {
+        events.ScheduleEvent(EVENT_FLAME_BUFFET, 4s);
+        events.ScheduleEvent(EVENT_FLAME_BREATH, 12s);
+    }
+
+    void IsSummonedBy(Unit* summoner) override
+    {
+        me->GetMotionMaster()->MoveFollow(summoner, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        if (!UpdateVictim())
+            return;
+
+        events.Update(diff);
+
+        switch (events.ExecuteEvent())
+        {
+            case EVENT_FLAME_BUFFET:
+                DoCastVictim(SPELL_FLAME_BUFFET);
+                events.Repeat(12s);
+                break;
+            case EVENT_FLAME_BREATH:
+                DoCastVictim(SPELL_FLAME_BREATH);
+                events.Repeat(24s);
+                break;
+        }
+
+        DoMeleeAttackIfReady();
+    }
+};
+
 void AddSC_npcs_special()
 {
     // Ours
@@ -2569,4 +2626,5 @@ void AddSC_npcs_special()
     new npc_firework();
     new npc_spring_rabbit();
     new npc_stable_master();
+    RegisterCreatureAI(npc_arcanite_dragonling);
 }

@@ -111,7 +111,7 @@ bool NPCStaveQuestAI::IsFairFight()
     {
         Unit* unit = ObjectAccessor::GetUnit(*me, (*itr)->getUnitGuid());
 
-        if (!(*itr)->getThreat())
+        if (!(*itr)->GetThreat())
         {
             // if target threat is 0 its fair, this prevents despawn in the case when
             // there is a bystander since UpdateVictim adds nearby enemies to the threatlist
@@ -371,7 +371,8 @@ public:
                     if (!ValidThreatlist())
                     {
                         SetHomePosition();
-                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetImmuneToAll(true);
                         me->DespawnOrUnsummon(5000);
                         break;
                     }
@@ -391,6 +392,14 @@ public:
             }
 
             DoMeleeAttackIfReady();
+        }
+
+        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType, SpellSchoolMask) override
+        {
+            if (attacker == me)
+            {
+                me->LowerPlayerDamageReq(damage);
+            }
         }
 
         void SpellHit(Unit* /*Caster*/, SpellInfo const* Spell) override
@@ -751,8 +760,10 @@ public:
                         SetHomePosition();
                         PreciousAI()->SetHomePosition();
 
-                        Precious()->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
-                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+                        Precious()->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        Precious()->SetImmuneToAll(true);
+                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetImmuneToAll(true);
 
                         Precious()->DespawnOrUnsummon(5000);
 
@@ -962,7 +973,8 @@ public:
                     {
                         SetHomePosition();
                         me->RemoveAllMinionsByEntry(CREEPING_DOOM_ENTRY);
-                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetImmuneToAll(true);
                         me->CombatStop(true);
                         me->Say(NELSON_DESPAWN_SAY);
                         me->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
@@ -1136,7 +1148,8 @@ public:
                     if (!ValidThreatlist())
                     {
                         SetHomePosition();
-                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+                        me->SetUnitFlag(UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetImmuneToAll(true);
                         me->CombatStop(true);
                         me->Say(FRANKLIN_DESPAWN_SAY);
                         me->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
@@ -1165,6 +1178,14 @@ public:
             if (Spell->Id == FRANKLIN_WEAKNESS_SCORPID_STING)
             {
                 me->CastSpell(me, FRANKLIN_SPELL_ENTROPIC_STING, false);
+            }
+        }
+
+        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType, SpellSchoolMask) override
+        {
+            if (attacker == me)
+            {
+                me->LowerPlayerDamageReq(damage);
             }
         }
 

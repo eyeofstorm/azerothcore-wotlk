@@ -299,7 +299,7 @@ public:
             if (events.GetPhaseMask() & PHASE_ONE_MASK && damage >= me->GetPower(POWER_MANA))
             {
                 // reset threat
-                ThreatContainer::StorageType const& threatlist = me->GetThreatMgr().getThreatList();
+                ThreatContainer::StorageType const& threatlist = me->GetThreatMgr().GetThreatList();
                 for (ThreatContainer::StorageType::const_iterator itr = threatlist.begin(); itr != threatlist.end(); ++itr)
                 {
                     Unit* unit = ObjectAccessor::GetUnit((*me), (*itr)->getUnitGuid());
@@ -515,7 +515,7 @@ public:
                 {
                     darnavan->RemoveAllAuras();
                     darnavan->SetFaction(FACTION_FRIENDLY);
-                    darnavan->DeleteThreatList();
+                    darnavan->GetThreatMgr().ClearAllThreat();
                     darnavan->CombatStop(true);
                     darnavan->GetMotionMaster()->MoveIdle();
                     darnavan->StopMoving();

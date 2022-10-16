@@ -19,7 +19,6 @@
 #define ACORE_SHAREDDEFINES_H
 
 #include "Define.h"
-#include "DetourNavMesh.h"
 #include "EnumFlag.h"
 #include <cassert>
 
@@ -537,7 +536,7 @@ enum SpellAttr4 : uint32
 // EnumUtils: DESCRIBE THIS
 enum SpellAttr5 : uint32
 {
-    SPELL_ATTR5_ALLOW_ACTION_DURING_CHANNEL                    = 0x00000001, // TITLE Can be channeled while moving
+    SPELL_ATTR5_ALLOW_ACTION_DURING_CHANNEL                    = 0x00000001, // TITLE Can be channeled while moving/casting
     SPELL_ATTR5_NO_REAGENT_COST_WITH_AURA                      = 0x00000002, // TITLE No reagents during arena preparation
     SPELL_ATTR5_REMOVE_ENTERING_ARENA                          = 0x00000004, // TITLE Remove when entering arena DESCRIPTION Force this aura to be removed on entering arena, regardless of other properties
     SPELL_ATTR5_ALLOW_WHILE_STUNNED                            = 0x00000008, // TITLE Usable while stunned
@@ -3419,12 +3418,32 @@ uint8 constexpr PVP_TEAMS_COUNT = 2;
 
 inline PvPTeamId GetPvPTeamId(TeamId teamId)
 {
-    return teamId == TEAM_ALLIANCE ? PVP_TEAM_ALLIANCE : PVP_TEAM_HORDE;
+    if (teamId == TEAM_ALLIANCE)
+    {
+        return PVP_TEAM_ALLIANCE;
+    }
+
+    if (teamId == TEAM_HORDE)
+    {
+        return PVP_TEAM_HORDE;
+    }
+
+    return PVP_TEAM_NEUTRAL;
 }
 
 inline TeamId GetTeamId(PvPTeamId teamId)
 {
-    return teamId == PVP_TEAM_ALLIANCE ? TEAM_ALLIANCE : TEAM_HORDE;
+    if (teamId == PVP_TEAM_ALLIANCE)
+    {
+        return TEAM_ALLIANCE;
+    }
+
+    if (teamId == PVP_TEAM_HORDE)
+    {
+        return TEAM_HORDE;
+    }
+
+    return TEAM_NEUTRAL;
 }
 
 // indexes of BattlemasterList.dbc

@@ -187,6 +187,10 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recvData)
         {
             err = ERR_BATTLEGROUND_NONE;
         }
+        else if (!_player->GetBGAccessByLevel(bgTypeId))
+        {
+            err = ERR_BATTLEGROUND_NONE;
+        }
 
         if (err <= 0)
         {
@@ -236,12 +240,21 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recvData)
             {
                 err = ERR_BATTLEGROUND_NONE;
             }
+            else if (!member->GetBGAccessByLevel(bgTypeId))
+            {
+                err = ERR_BATTLEGROUND_JOIN_TIMED_OUT;
+            }
 
             if (err < 0)
             {
                 return;
             }
         });
+
+        if (err)
+        {
+            err = grp->CanJoinBattlegroundQueue(bg, bgQueueTypeId, 0, bg->GetMaxPlayersPerTeam(), false, 0);
+        }
 
         if (err <= 0)
         {
@@ -254,9 +267,6 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recvData)
 
             return;
         }
-
-        ASSERT(err > 0);
-        err = grp->CanJoinBattlegroundQueue(bg, bgQueueTypeId, 0, bg->GetMaxPlayersPerTeam(), false, 0);
 
         isPremade = (grp->GetMembersCount() >= bg->GetMinPlayersPerTeam() && bgTypeId != BATTLEGROUND_RB);
         uint32 avgWaitTime = 0;
@@ -401,6 +411,12 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket& recvData)
         return;
     }
 
+    if (_player->GetCharmGUID() || _player->IsInCombat())
+    {
+        _player->GetSession()->SendNotification(LANG_YOU_IN_COMBAT);
+        return;
+    }
+
     // get BattlegroundQueue for received
     BattlegroundTypeId bgTypeId = BattlegroundTypeId(bgTypeId_);
     BattlegroundQueueTypeId bgQueueTypeId = BattlegroundMgr::BGQueueTypeId(bgTypeId, arenaType);
@@ -531,13 +547,20 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket& recvData)
     }
     else // leave queue
     {
-        bgQueue.RemovePlayer(_player->GetGUID(), true);
-        _player->RemoveBattlegroundQueueId(bgQueueTypeId);
+        for (auto const& playerGuid : ginfo.Players)
+        {
+            auto player = ObjectAccessor::FindConnectedPlayer(playerGuid);
+            if (!player)
+                continue;
 
-        sBattlegroundMgr->BuildBattlegroundStatusPacket(&data, bg, queueSlot, STATUS_NONE, 0, 0, 0, TEAM_NEUTRAL);
-        SendPacket(&data);
+            bgQueue.RemovePlayer(playerGuid, true);
+            player->RemoveBattlegroundQueueId(bgQueueTypeId);
 
-        LOG_DEBUG("bg.battleground", "Battleground: player {} {} left queue for bgtype {}, queue type {}.", _player->GetName(), _player->GetGUID().ToString(), bg->GetBgTypeID(), bgQueueTypeId);
+            sBattlegroundMgr->BuildBattlegroundStatusPacket(&data, bg, queueSlot, STATUS_NONE, 0, 0, 0, TEAM_NEUTRAL);
+            player->SendDirectMessage(&data);
+
+            LOG_DEBUG("bg.battleground", "Battleground: player {} {} left queue for bgtype {}, queue type {}.", player->GetName(), playerGuid.ToString(), bg->GetBgTypeID(), bgQueueTypeId);
+        }
 
         // player left queue, we should update it - do not update Arena Queue
         if (!ginfo.ArenaType)

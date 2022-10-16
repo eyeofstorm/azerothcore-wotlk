@@ -179,6 +179,7 @@ RUN mkdir -p /azerothcore/env/etc/
 COPY --chown=$DOCKER_USER:$DOCKER_USER var/docker/ccache /azerothcore/var/ccache
 COPY --chown=$DOCKER_USER:$DOCKER_USER env/docker/etc/authserver.conf.dockerdist /azerothcore/env/dist/etc/authserver.conf.dockerdist
 COPY --chown=$DOCKER_USER:$DOCKER_USER env/docker/etc/worldserver.conf.dockerdist /azerothcore/env/dist/etc/worldserver.conf.dockerdist
+COPY --chown=$DOCKER_USER:$DOCKER_USER env/docker/etc/dbimport.conf.dockerdist /azerothcore/env/dist/etc/dbimport.conf.dockerdist
 
 # install eluna
 RUN git clone --depth=1 --branch=master https://github.com/azerothcore/mod-eluna.git /azerothcore/modules/mod-eluna
@@ -189,7 +190,8 @@ ENV AC_CCACHE=true
 ENV CCACHE_CPP2=true
 ENV CSCRIPTPCH=OFF
 ENV CCOREPCH=OFF
-ENV CTOOLS=ON
+ENV CTOOLS_BUILD=all
+# ENV CTOOLS_BUILD=maps-only
 ENV CSCRIPTS=static
 RUN bash apps/docker/docker-build-prod.sh
 
@@ -224,6 +226,7 @@ RUN mkdir -p /azerothcore/env/dist/bin/lua_scripts
 COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/etc /azerothcore/env/dist/etc
 COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/worldserver /azerothcore/env/dist/bin/worldserver
 COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/lua_scripts /azerothcore/env/dist/bin/lua_scripts
+COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/dbimport /azerothcore/env/dist/bin/dbimport
 
 #================================================================
 #
@@ -303,8 +306,9 @@ RUN mkdir -p /azerothcore/env/client/maps
 RUN mkdir -p /azerothcore/env/client/mmaps
 RUN mkdir -p /azerothcore/env/client/vmaps
 
-COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/mapextractor /azerothcore/env/client/mapextractor
-COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/mmaps_generator /azerothcore/env/client/mmaps_generator
-COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/vmap4assembler /azerothcore/env/client/vmap4assembler
-COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/vmap4extractor /azerothcore/env/client/vmap4extractor
+# Need fix
+# COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/mapextractor /azerothcore/env/client/mapextractor
+# COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/mmaps_generator /azerothcore/env/client/mmaps_generator
+# COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/vmap4assembler /azerothcore/env/client/vmap4assembler
+# COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /azerothcore/env/dist/bin/vmap4extractor /azerothcore/env/client/vmap4extractor
 

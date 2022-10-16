@@ -65,7 +65,7 @@ constexpr float VisibilityDistances[AsUnderlyingType(VisibilityDistanceType::Max
     VISIBILITY_DISTANCE_SMALL,
     VISIBILITY_DISTANCE_LARGE,
     VISIBILITY_DISTANCE_GIGANTIC,
-    MAX_VISIBILITY_DISTANCE
+    VISIBILITY_DISTANCE_INFINITE
 };
 
 Object::Object() : m_PackGUID(sizeof(uint64) + 1)
@@ -1010,6 +1010,13 @@ bool Object::PrintIndexError(uint32 index, bool set) const
     return false;
 }
 
+std::string Object::GetDebugInfo() const
+{
+    std::stringstream sstr;
+    sstr << GetGUID().ToString() + " Entry " << GetEntry();
+    return sstr.str();
+}
+
 void MovementInfo::OutDebug()
 {
     LOG_INFO("movement", "MOVEMENT INFO");
@@ -1230,11 +1237,11 @@ bool WorldObject::_IsWithinDist(WorldObject const* obj, float dist2compare, bool
     return distsq < maxdist * maxdist;
 }
 
-Position WorldObject::GetHitSpherePointFor(Position const& dest) const
+Position WorldObject::GetHitSpherePointFor(Position const& dest, Optional<float> collisionHeight) const
 {
-    G3D::Vector3 vThis(GetPositionX(), GetPositionY(), GetPositionZ() + GetCollisionHeight());
+    G3D::Vector3 vThis(GetPositionX(), GetPositionY(), GetPositionZ() + (collisionHeight ? *collisionHeight : GetCollisionHeight()));
     G3D::Vector3 vObj(dest.GetPositionX(), dest.GetPositionY(), dest.GetPositionZ());
-    G3D::Vector3 contactPoint = vThis + (vObj - vThis).directionOrZero() * std::min(dest.GetExactDist(this), GetObjectSize());
+    G3D::Vector3 contactPoint = vThis + (vObj - vThis).directionOrZero() * std::min(dest.GetExactDist(this), GetCombatReach());
 
     return Position(contactPoint.x, contactPoint.y, contactPoint.z, GetAngle(contactPoint.x, contactPoint.y));
 }
@@ -1341,7 +1348,7 @@ bool WorldObject::IsWithinLOS(float ox, float oy, float oz, VMAP::ModelIgnoreFla
     return true;
 }
 
-bool WorldObject::IsWithinLOSInMap(WorldObject const* obj, VMAP::ModelIgnoreFlags ignoreFlags, LineOfSightChecks checks) const
+bool WorldObject::IsWithinLOSInMap(WorldObject const* obj, VMAP::ModelIgnoreFlags ignoreFlags, LineOfSightChecks checks, Optional<float> collisionHeight /*= {}*/) const
 {
    if (!IsInMap(obj))
         return false;
@@ -1353,7 +1360,7 @@ bool WorldObject::IsWithinLOSInMap(WorldObject const* obj, VMAP::ModelIgnoreFlag
         oz += obj->GetCollisionHeight();
     }
     else
-        obj->GetHitSpherePointFor({ GetPositionX(), GetPositionY(), GetPositionZ() + GetCollisionHeight() }, ox, oy, oz);
+        obj->GetHitSpherePointFor({ GetPositionX(), GetPositionY(), GetPositionZ() + (collisionHeight ? *collisionHeight : GetCollisionHeight()) }, ox, oy, oz);
 
     float x, y, z;
     if (GetTypeId() == TYPEID_PLAYER)
@@ -1362,14 +1369,14 @@ bool WorldObject::IsWithinLOSInMap(WorldObject const* obj, VMAP::ModelIgnoreFlag
         z += GetCollisionHeight();
     }
     else
-        GetHitSpherePointFor({ obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ() + obj->GetCollisionHeight() }, x, y, z);
+        GetHitSpherePointFor({ obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ() + obj->GetCollisionHeight() }, x, y, z, collisionHeight);
 
     return GetMap()->isInLineOfSight(x, y, z, ox, oy, oz, GetPhaseMask(), checks, ignoreFlags);
 }
 
-void WorldObject::GetHitSpherePointFor(Position const& dest, float& x, float& y, float& z) const
+void WorldObject::GetHitSpherePointFor(Position const& dest, float& x, float& y, float& z, Optional<float> collisionHeight) const
 {
-    Position pos = GetHitSpherePointFor(dest);
+    Position pos = GetHitSpherePointFor(dest, collisionHeight);
     x = pos.GetPositionX();
     y = pos.GetPositionY();
     z = pos.GetPositionZ();
@@ -1631,7 +1638,7 @@ float WorldObject::GetGridActivationRange() const
     {
         return ToCreature()->m_SightDistance;
     }
-    else if (GetTypeId() == TYPEID_GAMEOBJECT && ToGameObject()->IsTransport() && isActiveObject())
+    else if (((GetTypeId() == TYPEID_GAMEOBJECT && ToGameObject()->IsTransport()) || GetTypeId() == TYPEID_DYNAMICOBJECT) && isActiveObject())
     {
         return GetMap()->GetVisibilityRange();
     }
@@ -1643,7 +1650,7 @@ float WorldObject::GetVisibilityRange() const
 {
     if (IsVisibilityOverridden() && GetTypeId() == TYPEID_UNIT)
     {
-        return MAX_VISIBILITY_DISTANCE;
+        return *m_visibilityDistanceOverride;
     }
     else if (GetTypeId() == TYPEID_GAMEOBJECT)
     {
@@ -1654,7 +1661,7 @@ float WorldObject::GetVisibilityRange() const
             }
             else if (IsVisibilityOverridden())
             {
-                return MAX_VISIBILITY_DISTANCE;
+                return *m_visibilityDistanceOverride;
             }
             else
             {
@@ -1676,7 +1683,7 @@ float WorldObject::GetSightRange(WorldObject const* target) const
             {
                 if (target->IsVisibilityOverridden() && target->GetTypeId() == TYPEID_UNIT)
                 {
-                    return MAX_VISIBILITY_DISTANCE;
+                    return *target->m_visibilityDistanceOverride;
                 }
                 else if (target->GetTypeId() == TYPEID_GAMEOBJECT)
                 {
@@ -1686,7 +1693,7 @@ float WorldObject::GetSightRange(WorldObject const* target) const
                     }
                     else if (target->IsVisibilityOverridden())
                     {
-                        return MAX_VISIBILITY_DISTANCE;
+                        return *target->m_visibilityDistanceOverride;
                     }
                     else if (ToPlayer()->GetCinematicMgr()->IsOnCinematic())
                     {
@@ -2268,6 +2275,11 @@ GameObject* Map::SummonGameObject(uint32 entry, float x, float y, float z, float
     return go;
 }
 
+GameObject* Map::SummonGameObject(uint32 entry, Position const& pos, float rotation0, float rotation1, float rotation2, float rotation3, uint32 respawnTime, bool checkTransport)
+{
+    return SummonGameObject(entry, pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), pos.GetOrientation(), rotation0, rotation1, rotation2, rotation3, respawnTime, checkTransport);
+}
+
 void WorldObject::SetZoneScript()
 {
     if (Map* map = FindMap())
@@ -2417,6 +2429,15 @@ Player* WorldObject::SelectNearestPlayer(float distance) const
     Cell::VisitWorldObjects(this, searcher, distance);
 
     return target;
+}
+
+std::string WorldObject::GetDebugInfo() const
+{
+    std::stringstream sstr;
+    sstr << WorldLocation::GetDebugInfo() << "\n"
+        << Object::GetDebugInfo() << "\n"
+        << "Name: " << GetName();
+    return sstr.str();
 }
 
 void WorldObject::GetGameObjectListWithEntryInGrid(std::list<GameObject*>& gameobjectList, uint32 entry, float maxSearchRange) const

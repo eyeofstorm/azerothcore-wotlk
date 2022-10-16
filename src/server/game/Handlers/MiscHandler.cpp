@@ -98,6 +98,12 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
     if (_player->PlayerTalkClass->IsGossipOptionCoded(gossipListId))
         recv_data >> code;
 
+    // Prevent cheating on C++ scripted menus
+    if (_player->PlayerTalkClass->GetGossipMenu().GetSenderGUID() != guid)
+    {
+        return;
+    }
+
     Creature* unit = nullptr;
     GameObject* go = nullptr;
     Item* item = nullptr;
@@ -528,6 +534,16 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
     ObjectGuid guid;
     recv_data >> guid;
 
+    if (!guid)
+    {
+        // Clear any active gossip related to current selection if not present at player's client
+        GossipMenu& gossipMenu = _player->PlayerTalkClass->GetGossipMenu();
+        if (gossipMenu.GetSenderGUID() == _player->GetTarget())
+        {
+            _player->PlayerTalkClass->SendCloseGossip();
+        }
+    }
+
     _player->SetSelection(guid);
 
     // Change target of current autoshoot spell
@@ -731,7 +747,8 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         return;
     }
 
-    if (!player->IsInAreaTriggerRadius(atEntry))
+    bool isTavernAreatrigger = sObjectMgr->IsTavernAreaTrigger(triggerId);
+    if (!player->IsInAreaTriggerRadius(atEntry, isTavernAreatrigger ? 5.f : 0.f))
     {
         LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player {} ({}) too far (trigger map: {} player map: {}), ignore Area Trigger ID: {}",
                        player->GetName(), player->GetGUID().ToString(), atEntry->map, player->GetMapId(), triggerId);
@@ -749,14 +766,20 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
             if (player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
                 player->AreaExploredOrEventHappens(questId);
 
-    if (sObjectMgr->IsTavernAreaTrigger(triggerId))
+    if (isTavernAreatrigger)
     {
         // set resting flag we are in the inn
         player->SetRestFlag(REST_FLAG_IN_TAVERN, atEntry->entry);
 
         if (sWorld->IsFFAPvPRealm())
-            player->RemoveByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+        {
+            if (player->HasByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP))
+            {
+                player->RemoveByteFlag(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_FFA_PVP);
+                sScriptMgr->OnFfaPvpStateUpdate(player, false);
 
+            }
+        }
         return;
     }
 
@@ -1225,14 +1248,37 @@ void WorldSession::HandleFarSightOpcode(WorldPacket& recvData)
         if (WorldObject* target = _player->GetViewpoint())
             _player->SetSeer(target);
         else
-        {
             LOG_DEBUG("network.opcode", "Player {} requests non-existing seer {}", _player->GetName(), _player->GetGuidValue(PLAYER_FARSIGHT).ToString());
-        }
     }
     else
     {
-        LOG_DEBUG("network", "Player {} set vision to self", _player->GetGUID().ToString());
-        _player->SetSeer(_player);
+        WorldObject* newFarsightobject = nullptr;
+        if (WorldObject* viewpoint = _player->GetViewpoint())
+        {
+            if (DynamicObject* viewpointDynamicObject = viewpoint->ToDynObject())
+            {
+                newFarsightobject = ObjectAccessor::GetUnit(*viewpointDynamicObject, viewpointDynamicObject->GetOldFarsightGUID());
+            }
+            else if (DynamicObject* viewpointDynamicObject = _player->GetDynObject(_player->GetUInt32Value(UNIT_CHANNEL_SPELL)))
+            {
+                if (viewpointDynamicObject->IsViewpoint() && viewpointDynamicObject->GetCasterGUID() == _player->GetGUID())
+                {
+                    newFarsightobject = viewpointDynamicObject;
+                }
+            }
+        }
+
+        if (newFarsightobject)
+        {
+            LOG_DEBUG("network", "Player {} set vision to old farsight {}", _player->GetGUID().ToString(), newFarsightobject->GetGUID().ToString());
+            _player->SetViewpoint(_player->GetViewpoint(), false);
+            _player->SetViewpoint(newFarsightobject, true);
+        }
+        else
+        {
+            LOG_DEBUG("network", "Player {} set vision to self", _player->GetGUID().ToString());
+            _player->SetSeer(_player);
+        }
     }
 
     GetPlayer()->UpdateVisibilityForPlayer();
@@ -1656,7 +1702,7 @@ void WorldSession::HandleHearthAndResurrect(WorldPacket& /*recv_data*/)
     _player->BuildPlayerRepop();
     _player->ResurrectPlayer(1.0f);
     _player->SpawnCorpseBones();
-    _player->TeleportTo(_player->m_homebindMapId, _player->m_homebindX, _player->m_homebindY, _player->m_homebindZ, _player->GetOrientation());
+    _player->TeleportTo(_player->m_homebindMapId, _player->m_homebindX, _player->m_homebindY, _player->m_homebindZ, _player->m_homebindO);
 }
 
 void WorldSession::HandleInstanceLockResponse(WorldPacket& recvPacket)
